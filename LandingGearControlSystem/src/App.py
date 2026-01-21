@@ -8,34 +8,70 @@ class GearState(Enum):
     TRANSITIONING_UP = auto()
     ERROR = auto()
 
+class GearPosition(Enum):
+    UP = auto()
+    DOWN = auto()
+    UNKNOWN = auto()
+
+class GearSensor:
+    def __init__(self):
+        self.position = GearPosition.UP
+    
+    def get_position(self):
+        return self.position
+    
+    def set_position(self, position):
+        self.position = position
+
 class LandingGearController:
     def __init__(self):
         self.state = GearState.UP_LOCKED
+        self.sensor = GearSensor()
 
     def log(self, message):
         print(f"[{self.state.name}] {message}")
 
     def command_gear_down(self):
-        if self.state == GearState.UP_LOCKED:
+
+        position = self.sensor.get_position()
+    
+        if self.state == GearState.DOWN_LOCKED and position == GearPosition.DOWN:
+            self.log("Command rejected: gear already down.")
+            return
+        
+        if self.state == GearState.UP_LOCKED and position == GearPosition.UP:
             self.state = GearState.TRANSITIONING_DOWN
-            self.log("Gear deploying")
+            self.sensor.set_position(GearPosition.UNKNOWN)
+            self.log("Gear deploying.")
             time.sleep(1)
             self.state = GearState.DOWN_LOCKED
-            self.log("Gear locked down")
+            self.sensor.set_position(GearPosition.DOWN)
+            self.log("Gear locked down.")
         else:
-            self.log("Command rejected")
+            self.state = GearState.ERROR 
+            self.sensor.set_position(GearPosition.UNKNOWN)
+            self.log("ERROR")
 
     def command_gear_up(self):
-        if self.state == GearState.DOWN_LOCKED:
+
+        position = self.sensor.get_position()
+
+        if self.state == GearState.UP_LOCKED and position == GearPosition.UP:
+            self.log("Command rejected: gear already up.")
+            return
+
+        if self.state == GearState.DOWN_LOCKED and position == GearPosition.DOWN:
             self.state = GearState.TRANSITIONING_UP
-            self.log("Gear retracting")
+            self.sensor.set_position(GearPosition.UNKNOWN)
+            self.log("Gear retracting.")
             time.sleep(1)
             self.state = GearState.UP_LOCKED
-            self.log("Gear locked up")
+            self.sensor.set_position(GearPosition.UP)
+            self.log("Gear locked up.")
         else:
-            self.log("Command rejected")
-
-
+            self.state = GearState.ERROR 
+            self.sensor.set_position(GearPosition.UNKNOWN)
+            self.log("ERROR")
 
 controller = LandingGearController()
 controller.command_gear_down()
