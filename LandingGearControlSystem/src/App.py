@@ -1,6 +1,7 @@
 from enum import Enum, auto
 import time
 
+# Potential states the system can be in.
 class GearState(Enum):
     UP_LOCKED = auto()
     TRANSITIONING_DOWN = auto()
@@ -8,17 +9,20 @@ class GearState(Enum):
     TRANSITIONING_UP = auto()
     ERROR = auto()
 
+# Potential positions the landing gear can be in
 class GearPosition(Enum):
     UP = auto()
     DOWN = auto()
     UNKNOWN = auto()
 
+# Potential faults the system can experience
 class GearFault(Enum):
     SENSOR_MISMATCH = auto()
     TIMEOUT_ERROR = auto()
     HYDRAULIC_FAILURE = auto()
     NONE = auto()
 
+# Potential commands the system can receive
 class GearCommand(Enum):
     GEAR_UP = auto()
     GEAR_DOWN = auto()
@@ -29,6 +33,7 @@ class GearCommand(Enum):
     SIMULATE_HYDRAULIC_FAILURE = auto()
     SIMULATE_TIMEOUT_ERROR = auto()
 
+# Sensor class with get/set for the GearPosition.
 class GearSensor:
     def __init__(self, name):
         self.name= name
@@ -40,17 +45,20 @@ class GearSensor:
     def set_position(self, position):
         self.position = position
 
+# Class with functionality to introduce triple redundancy for sensors.
 class TripleRedundancy:
     def __init__(self, sensors):
         if len(sensors) != 3:
             raise ValueError("3 sensors required.")
         self.sensors = sensors
     
+    # Get each sensors' reading
     def get_position(self):
         sensor_position_one = self.sensors[0].get_position()
         sensor_position_two = self.sensors[1].get_position()
         sensor_position_three = self.sensors[2].get_position()
 
+        # Check for a majority vote, if no majority then set as UNKNOWN.
         if sensor_position_one == sensor_position_two or sensor_position_one == sensor_position_three:
             return sensor_position_one
         if sensor_position_two == sensor_position_three:
@@ -62,8 +70,10 @@ class TripleRedundancy:
         for sensor in self.sensors:
             sensor.set_position(position)
 
-
+# Class with functionality of the controller.
 class LandingGearController:
+
+    # Initialising and setting everything to standard.
     def __init__(self):
         self.system_active = True
         self.hydraulics_functional = True
@@ -78,10 +88,14 @@ class LandingGearController:
 
         self.sensor = TripleRedundancy([sensor_1, sensor_2, sensor_3])
 
+    # Set up logger
     def log(self, message):
         print(f"{message}")
 
+    # Functionality for handling when a command is input.
     def receive_command(self, command: GearCommand):
+
+        # Safety/Validation checks on command.
         if self.system_active != True:
             self.log("System inactive. Command rejected.")
             return 
@@ -94,6 +108,7 @@ class LandingGearController:
             self.log("Command rejected. System in ERROR. Reset Required.")
             return 
         
+        # Command is valid, handle correspondingly.
         if command == GearCommand.GEAR_DOWN:
             self.command_gear_down()
         elif command == GearCommand.GEAR_UP:
@@ -111,11 +126,11 @@ class LandingGearController:
         elif command == GearCommand.SIMULATE_TIMEOUT_ERROR:
             self.simulate_timeout_error()
 
-
-
+    # Functionality to safely extend landing gear.
     def command_gear_down(self):
         position = self.sensor.get_position()
 
+        # Safety/Validation checks
         if self.hydraulics_functional != True:
             self.handle_fault(GearFault.HYDRAULIC_FAILURE)
             return
@@ -130,11 +145,13 @@ class LandingGearController:
             self.log(f"GearPosition: {self.sensor.get_position().name}")
             return
         
+        # Extend gear.
         if self.state == GearState.UP_LOCKED and position == GearPosition.UP:
             self.state = GearState.TRANSITIONING_DOWN
             self.sensor.set_position(GearPosition.UNKNOWN)
             self.log(f"GearState: {self.state.name}.")
             
+            # Check for timeout during transition.
             transition_start = time.time()
             while time.time() - transition_start < self.time_requirement:
                 if self.timeout == True:
@@ -144,6 +161,7 @@ class LandingGearController:
                     return
                 time.sleep(0.1)
 
+            # Gear extended.
             self.state = GearState.DOWN_LOCKED
             self.sensor.set_position(GearPosition.DOWN)
             self.log(f"GearState: {self.state.name}.")
@@ -155,6 +173,7 @@ class LandingGearController:
     def command_gear_up(self):
         position = self.sensor.get_position()
 
+        # Safety/Validation checks
         if self.hydraulics_functional != True:
             self.handle_fault(GearFault.HYDRAULIC_FAILURE)
             return
@@ -167,13 +186,15 @@ class LandingGearController:
             self.log(f"Command rejected:")
             self.log(f"GearState:{self.state.name}")
             self.log(f"GearPosition: {self.sensor.get_position().name}")
-            return
-
+            return  
+        
+        # Retract gear.
         if self.state == GearState.DOWN_LOCKED and position == GearPosition.DOWN:
             self.state = GearState.TRANSITIONING_UP
             self.sensor.set_position(GearPosition.UNKNOWN)
             self.log(f"GearState: {self.state.name}.")
 
+            # Check for timeout during transition.
             transition_start = time.time()
             while time.time() - transition_start < self.time_requirement:
                 if self.timeout == True:
@@ -183,6 +204,7 @@ class LandingGearController:
                     return
                 time.sleep(0.1)
 
+            # Gear retracted.
             self.state = GearState.UP_LOCKED
             self.sensor.set_position(GearPosition.UP)
             self.log(f"GearState: {self.state.name}.")
@@ -190,55 +212,71 @@ class LandingGearController:
         else: 
             self.log("Invalid command rejected.")
 
+    # Command to reset the system.
     def command_reset_system(self):
+        
+        # Set everything back to standard.
         self.system_active = True
         self.hydraulics_functional = True
         self.timeout = False
         self.state = GearState.DOWN_LOCKED
         self.sensor.set_position(GearPosition.DOWN)
         self.fault = GearFault.NONE
+    
+        # Log reset.
         self.log(f"System reset:")
         self.log(f"GearState: {self.state.name}")
         self.log(f"GearPosition: {self.sensor.get_position().name}")
         self.log(f"FaultState: {self.fault.name}")
 
+    # Output standard system information.
     def command_info(self):
         self.log("SYSTEM INFO:")
         self.log(f"State: {self.state.name}")
         self.log(f"Gear Position: {self.sensor.get_position().name}")
         self.log(f"Fault: {self.fault.name}")
     
+    # Shutdown system.
     def command_shutdown(self):
         self.system_active = False
 
+    # Simulates mismatch in sensor readings.
     def simulate_sensor_mismatch(self):
         self.sensor.sensors[0].set_position(GearPosition.UNKNOWN)
         self.sensor.sensors[1].set_position(GearPosition.DOWN)
         self.sensor.sensors[2].set_position(GearPosition.UP)
         self.log("Simulating sensor mismatch in next command")
 
+    # Simulates a hyrdaulic failure.
     def simulate_hydraulic_failure(self):
         self.hydraulics_functional = False
         self.log("Simulating hydraulic failure in next command")
-    
+
+    # Simulates a timeout error.
     def simulate_timeout_error(self):
         self.timeout = True
         self.log("Simulating timeout error in next command")
 
+    # Functionality for resolving faults.
     def handle_fault(self, fault: GearFault):
         self.fault = fault
 
+        # Non-critical faults.
         if fault == GearFault.SENSOR_MISMATCH or fault == GearFault.TIMEOUT_ERROR:
             self.state = GearState.ERROR
             self.log(f"Fault detected: {self.fault.name}")
             self.log(f"State: {self.state.name}. Please use reset command to reset system.")
+        
+        # Hydraulic fault is critical.
         elif fault == GearFault.HYDRAULIC_FAILURE:
             self.state = GearState.ERROR
             self.log(f"CRITICAL FAULT DETECTED: {self.fault.name}. Shutting down system...")
             self.command_shutdown()
 
+# Inputs for system control.
 def control_input(controller):
     while True:
+        # Standard input simulation.
         user_input = input("Enter command: up/down/reset/info/shutdown: \n")
         if user_input == "up":
             controller.receive_command(GearCommand.GEAR_UP)
@@ -251,6 +289,8 @@ def control_input(controller):
         elif user_input == "shutdown":
             controller.receive_command(GearCommand.SHUTDOWN)
             return
+        
+        # Error inputs for simulation.
         elif user_input == "sensors":
             controller.receive_command(GearCommand.SIMULATE_SENSOR_MISMATCH)
         elif user_input == "hydraulics":
@@ -260,6 +300,7 @@ def control_input(controller):
         else:
             print("Please input a valid command.")
 
+# Run system.
 controller = LandingGearController()
 control_input(controller)
 
