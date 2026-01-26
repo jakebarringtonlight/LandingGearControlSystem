@@ -23,6 +23,7 @@ class GearCommand(Enum):
     GEAR_UP = auto()
     GEAR_DOWN = auto()
     RESET = auto()
+    INFO = auto()
 
 class GearSensor:
     def __init__(self, name):
@@ -71,9 +72,14 @@ class LandingGearController:
         self.sensor = TripleRedundancy([sensor_1, sensor_2, sensor_3])
 
     def log(self, message):
-        print(f"[{self.state.name}] {message}")
+        print(f"{message}")
 
     def receive_command(self, command: GearCommand):
+
+        if self.fault != GearFault.NONE and command != GearCommand.RESET:
+            self.log("Command rejected. System experiencing fault. Reset Required.")
+            return
+
         if self.state == GearState.ERROR and command != GearCommand.RESET:
             self.log("Command rejected. System in ERROR. Reset Required.")
             return
@@ -83,10 +89,13 @@ class LandingGearController:
         elif command == GearCommand.GEAR_UP:
             self.command_gear_up()
         elif command ==  GearCommand.RESET:
-             self.reset_system()
-
+            self.command_reset_system()
+        elif command == GearCommand.INFO:
+            self.command_info()
+        elif command == GearCommand.SHUTDOWN:
+            return
+        
     def command_gear_down(self):
-
         position = self.sensor.get_position()
 
         if position == GearPosition.UNKNOWN:
@@ -111,7 +120,6 @@ class LandingGearController:
             
 
     def command_gear_up(self):
-
         position = self.sensor.get_position()
 
         if position == GearPosition.UNKNOWN:
@@ -134,21 +142,29 @@ class LandingGearController:
         else: 
             self.log("Invalid command rejected.")
 
-    def reset_system(self):
+    def command_reset_system(self):
         self.state = GearState.UP_LOCKED
         self.sensor.set_position(GearPosition.UP)
         self.fault = GearFault.NONE
         self.log("System reset. Gear up and locked.")
 
+    def command_info(self):
+        self.log("SYSTEM INFO:")
+        self.log(f"State: {self.state.name}")
+        self.log(f"Gear Position: {self.sensor.get_position().name}")
+        self.log(f"Fault: {self.fault.name}")
+
 def control_input(controller):
     while True:
-        user_input = input("Enter command: up/down/reset/shutdown: \n")
+        user_input = input("Enter command: up/down/reset/info/shutdown: \n")
         if user_input == "up":
             controller.receive_command(GearCommand.GEAR_UP)
         elif user_input == "down":
             controller.receive_command(GearCommand.GEAR_DOWN)
         elif user_input == "reset":
             controller.receive_command(GearCommand.RESET)
+        elif user_input == "info":
+            controller.receive_command(GearCommand.INFO)
         elif user_input == "shutdown":
             return
         else:
