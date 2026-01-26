@@ -19,6 +19,11 @@ class GearFault(Enum):
     HYDRAULIC_FAILURE = auto()
     NONE = auto()
 
+class GearCommand(Enum):
+    GEAR_UP = auto()
+    GEAR_DOWN = auto()
+    RESET = auto()
+
 class GearSensor:
     def __init__(self, name):
         self.name= name
@@ -65,9 +70,20 @@ class LandingGearController:
 
         self.sensor = TripleRedundancy([sensor_1, sensor_2, sensor_3])
 
-
     def log(self, message):
         print(f"[{self.state.name}] {message}")
+
+    def receive_command(self, command: GearCommand):
+        if self.state == GearState.ERROR and command != GearCommand.RESET:
+            self.log("Command rejected. System in ERROR. Reset Required.")
+            return
+        
+        if command == GearCommand.GEAR_DOWN:
+            self.command_gear_down()
+        elif command == GearCommand.GEAR_UP:
+            self.command_gear_up()
+        elif command ==  GearCommand.RESET:
+             self.reset_system()
 
     def command_gear_down(self):
 
@@ -122,8 +138,22 @@ class LandingGearController:
         self.state = GearState.UP_LOCKED
         self.sensor.set_position(GearPosition.UP)
         self.fault = GearFault.NONE
+        self.log("System reset. Gear up and locked.")
 
+def control_input(controller):
+    while True:
+        user_input = input("Enter command: up/down/reset/shutdown: \n")
+        if user_input == "up":
+            controller.receive_command(GearCommand.GEAR_UP)
+        elif user_input == "down":
+            controller.receive_command(GearCommand.GEAR_DOWN)
+        elif user_input == "reset":
+            controller.receive_command(GearCommand.RESET)
+        elif user_input == "shutdown":
+            return
+        else:
+            print("Please input a valid command.")
 
 controller = LandingGearController()
-controller.command_gear_down()
-controller.command_gear_up()
+control_input(controller)
+
